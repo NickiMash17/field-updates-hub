@@ -6,6 +6,7 @@ Django + Tailwind community platform for agricultural field updates (SmartKing A
 
 - User authentication: register, login, logout
 - Field update feed with category filter
+- Feed search (title/content/author) and pagination
 - Create, edit, and delete updates
 - Ownership protections for edit/delete actions
 - User profile page with post history and post count

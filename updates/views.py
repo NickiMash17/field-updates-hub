@@ -7,6 +7,8 @@ from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
 from django import forms
 from django.http import HttpResponseForbidden
+from django.core.paginator import Paginator
+from django.db.models import Q
 from .models import FieldUpdate
 from .forms import FieldUpdateForm
 
@@ -61,21 +63,36 @@ def feed(request):
     else:
         form = FieldUpdateForm()
     
-    # Get category filter from GET parameters
+    # Get filters from GET parameters
     category_filter = request.GET.get('category')
+    query = request.GET.get('q', '').strip()
     
     # Filter updates by category if specified
     if category_filter:
         updates = FieldUpdate.objects.filter(category=category_filter)
     else:
         updates = FieldUpdate.objects.all()
+
+    # Apply text search across title, content, and author username.
+    if query:
+        updates = updates.filter(
+            Q(title__icontains=query)
+            | Q(content__icontains=query)
+            | Q(author__username__icontains=query)
+        )
     
     # Order by newest first (handled by model Meta)
     updates = updates.order_by('-created_at')
     
+    paginator = Paginator(updates, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
     return render(request, 'updates/feed.html', {
         'form': form,
-        'updates': updates
+        'updates': page_obj.object_list,
+        'page_obj': page_obj,
+        'query': query,
+        'selected_category': category_filter,
     })
 
 

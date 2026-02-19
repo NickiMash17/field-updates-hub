@@ -74,6 +74,47 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(len(updates), 1)
         self.assertEqual(updates[0].category, "weather")
 
+    def test_feed_search_filters_by_title_content_or_author(self):
+        FieldUpdate.objects.create(
+            author=self.user,
+            title="Aphids detected",
+            content="Lower leaves have clusters.",
+            category="pest",
+        )
+        FieldUpdate.objects.create(
+            author=self.other_user,
+            title="Irrigation complete",
+            content="Watering cycle finished.",
+            category="general",
+        )
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(reverse("updates:feed"), {"q": "aphids"})
+
+        self.assertEqual(response.status_code, 200)
+        updates = list(response.context["updates"])
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0].title, "Aphids detected")
+
+    def test_feed_paginates_results(self):
+        for i in range(12):
+            FieldUpdate.objects.create(
+                author=self.user,
+                title=f"Update {i}",
+                content="Batch post",
+                category="general",
+            )
+        self.client.login(username="farmer1", password="StrongPass123!")
+
+        first_page = self.client.get(reverse("updates:feed"))
+        second_page = self.client.get(reverse("updates:feed"), {"page": 2})
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(second_page.status_code, 200)
+        self.assertEqual(len(list(first_page.context["updates"])), 10)
+        self.assertEqual(len(list(second_page.context["updates"])), 2)
+        self.assertEqual(first_page.context["page_obj"].number, 1)
+        self.assertEqual(second_page.context["page_obj"].number, 2)
+
     def test_owner_can_edit_update(self):
         update = FieldUpdate.objects.create(
             author=self.user,

@@ -11,8 +11,9 @@
                 <h1 class="mt-2 text-3xl font-extrabold tracking-tight">Community Updates Feed</h1>
                 <p class="mt-2 text-sm text-green-100/90">Share field conditions, monitor urgent trends, and coordinate faster.</p>
             </div>
-            <form method="get" class="grid grid-cols-1 gap-2 rounded-2xl border border-white/20 bg-white/10 p-3 sm:grid-cols-[1fr_auto]">
+            <form method="get" class="grid grid-cols-1 gap-2 rounded-2xl border border-white/20 bg-white/10 p-3 sm:grid-cols-[1fr_1fr_auto]">
                 <label for="category-filter" class="sr-only">Filter by category</label>
+                <label for="search-query" class="sr-only">Search updates</label>
                 <select id="category-filter" name="category" class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
                     <option value="">All Categories</option>
                     <option value="pest" {% if request.GET.category == 'pest' %}selected{% endif %}>Pest</option>
@@ -21,6 +22,8 @@
                     <option value="fertilizer" {% if request.GET.category == 'fertilizer' %}selected{% endif %}>Fertilizer</option>
                     <option value="general" {% if request.GET.category == 'general' %}selected{% endif %}>General</option>
                 </select>
+                <input id="search-query" name="q" type="text" value="{{ query }}" placeholder="Search title, content, or user"
+                       class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
                 <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700">Apply</button>
             </form>
         </div>
@@ -69,8 +72,8 @@
                     Latest updates{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}
                 </h2>
                 <p class="text-sm text-slate-600">
-                    {% if request.GET.category %}
-                        Filtered view for {{ request.GET.category|title }} posts.
+                    {% if request.GET.category or query %}
+                        Filtered results{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}{% if query %} matching "{{ query }}"{% endif %}.
                     {% else %}
                         Showing all categories across the community.
                     {% endif %}
@@ -137,13 +140,33 @@
             <div class="rounded-2xl border border-earth-100 bg-white/90 p-12 text-center shadow-sm">
                 <h3 class="text-lg font-bold text-slate-900">No updates found</h3>
                 <p class="mt-2 text-sm text-slate-600">
-                    {% if request.GET.category %}
-                        No posts are available in {{ request.GET.category|title }} yet.
+                    {% if request.GET.category or query %}
+                        No posts matched your current filters.
                     {% else %}
                         Be the first to post a field update.
                     {% endif %}
                 </p>
             </div>
+            {% endif %}
+
+            {% if page_obj and page_obj.paginator.num_pages > 1 %}
+            <nav class="mt-6 flex items-center justify-center gap-2" aria-label="Pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}"
+                       class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        Previous
+                    </a>
+                {% endif %}
+                <span class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}"
+                       class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        Next
+                    </a>
+                {% endif %}
+            </nav>
             {% endif %}
         </section>
     </div>
