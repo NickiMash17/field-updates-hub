@@ -61,8 +61,17 @@ def feed(request):
     else:
         form = FieldUpdateForm()
     
-    # Get all field updates, ordered by newest first (handled by model Meta)
-    updates = FieldUpdate.objects.all()
+    # Get category filter from GET parameters
+    category_filter = request.GET.get('category')
+    
+    # Filter updates by category if specified
+    if category_filter:
+        updates = FieldUpdate.objects.filter(category=category_filter)
+    else:
+        updates = FieldUpdate.objects.all()
+    
+    # Order by newest first (handled by model Meta)
+    updates = updates.order_by('-created_at')
     
     return render(request, 'updates/feed.html', {
         'form': form,

@@ -10,7 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
+import secrets
 from pathlib import Path
+
+
+def env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in {'1', 'true', 'yes', 'on'}
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +29,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-i8@j$v5!dbp$e&*f(sj2y*v635-)rul_@erh(gz09yc*d!5z1='
+# Provide DJANGO_SECRET_KEY in production. A random fallback keeps local setup simple.
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', secrets.token_urlsafe(64))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
 # CSRF settings for browser preview
 CSRF_TRUSTED_ORIGINS = [
@@ -34,6 +44,14 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:56123',
     'http://localhost:56123',
 ]
+
+# Security settings (deploy-safe defaults; can be overridden by env vars).
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0' if DEBUG else '31536000'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', not DEBUG)
+SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', not DEBUG)
+SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', not DEBUG)
+SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', not DEBUG)
+CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', not DEBUG)
 
 
 # Application definition
@@ -129,3 +147,6 @@ TEMPLATES = [
         },
     },
 ]
+
+# Keep current model PK type to avoid implicit auto-field warnings/migrations.
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
