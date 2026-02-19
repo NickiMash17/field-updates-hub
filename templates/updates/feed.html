@@ -81,7 +81,10 @@
                                     <div>
                                         <h3 class="text-lg font-semibold text-gray-900">{{ update.title }}</h3>
                                         <p class="text-sm text-gray-500">
-                                            by {{ update.author.username }} • {{ update.created_at|date:"M d, Y H:i" }}
+                                            by <a href="{% url 'updates:profile' update.author.pk %}" 
+                                               class="text-blue-600 hover:text-blue-800 font-medium">
+                                                {{ update.author.username }}
+                                               </a> • {{ update.created_at|date:"M d, Y H:i" }}
                                         </p>
                                     </div>
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -93,9 +96,24 @@
                                     {{ update.content|linebreaks }}
                                 </div>
                                 
-                                <div class="flex items-center text-sm text-gray-500">
-                                    {% if update.updated_at != update.created_at %}
-                                        <span>Updated {{ update.updated_at|date:"M d, Y H:i" }}</span>
+                                <div class="flex items-center justify-between text-sm text-gray-500">
+                                    <div>
+                                        {% if update.updated_at != update.created_at %}
+                                            <span>Updated {{ update.updated_at|date:"M d, Y H:i" }}</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if update.author == user %}
+                                    <div class="flex space-x-2">
+                                        <a href="{% url 'updates:edit' update.pk %}" 
+                                           class="text-blue-600 hover:text-blue-800 font-medium">
+                                            Edit
+                                        </a>
+                                        <a href="{% url 'updates:delete' update.pk %}" 
+                                           class="text-red-600 hover:text-red-800 font-medium">
+                                            Delete
+                                        </a>
+                                    </div>
                                     {% endif %}
                                 </div>
                             </div>

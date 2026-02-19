@@ -25,7 +25,15 @@ SECRET_KEY = 'django-insecure-i8@j$v5!dbp$e&*f(sj2y*v635-)rul_@erh(gz09yc*d!5z1=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+
+# CSRF settings for browser preview
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1:56123',
+    'http://localhost:56123',
+]
 
 
 # Application definition
@@ -103,7 +111,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Authentication settings
-LOGIN_REDIRECT_URL = 'feed'
+LOGIN_REDIRECT_URL = 'updates:feed'
 LOGOUT_REDIRECT_URL = 'login'
 
 # Templates
