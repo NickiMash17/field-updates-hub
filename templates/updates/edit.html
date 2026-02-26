@@ -30,7 +30,7 @@
             </div>
             {% endif %}
 
-            <form method="post" class="space-y-5">
+            <form method="post" enctype="multipart/form-data" class="space-y-5">
                 {% csrf_token %}
                 <div>
                     <label for="{{ form.title.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Title</label>
@@ -60,6 +60,39 @@
                 <div>
                     <label for="{{ form.content.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Content</label>
                     {{ form.content }}
+                </div>
+
+                {% if update.attachments.all %}
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-slate-700">Current Attachments</label>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {% for attachment in update.attachments.all %}
+                            {% if attachment.is_image %}
+                            <a href="{{ attachment.file.url }}" target="_blank" class="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                <img src="{{ attachment.file.url }}" alt="{{ attachment.file_name }}" 
+                                     class="h-32 w-full object-cover transition group-hover:scale-105">
+                                <div class="absolute inset-0 bg-black/0 transition group-hover:bg-black/10"></div>
+                            </a>
+                            {% else %}
+                            <a href="{{ attachment.file.url }}" target="_blank" 
+                               class="flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:bg-slate-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-center text-xs font-medium text-slate-600">{{ attachment.file_name|truncatechars:15 }}</p>
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p class="mt-2 text-xs text-slate-500">Note: To remove attachments, please contact an admin or delete and recreate the post.</p>
+                </div>
+                {% endif %}
+
+                <div>
+                    <label for="attachments" class="mb-1 block text-sm font-semibold text-slate-700">Add New Attachments (Images/PDFs)</label>
+                    <input type="file" name="attachments" id="attachments" multiple accept="image/*,application/pdf"
+                           class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 focus:border-green-500 focus:ring-4 focus:ring-green-100">
+                    <p class="mt-1 text-xs text-slate-500">Upload additional images or PDFs (max 10MB each)</p>
                 </div>
 
                 <div class="flex flex-col gap-3 pt-2 sm:flex-row">
