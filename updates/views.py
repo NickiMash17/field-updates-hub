@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils.dateparse import parse_date
 from collections import Counter
 
-from .models import Comment, FieldUpdate, Reaction, Tag, UpdateAuditLog
+from .models import Comment, FieldUpdate, Reaction, Tag, UpdateAuditLog, UserProfile
 from .forms import FieldUpdateForm
 
 
@@ -24,6 +24,30 @@ def log_update_event(*, actor, action, update_obj=None, metadata=""):
         metadata=metadata,
         update_title_snapshot=(update_obj.title if update_obj else ""),
     )
+
+
+def get_or_create_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    return profile
+
+
+def can_manage_update(user, update):
+    if update.author_id == user.id:
+        return True
+    profile = get_or_create_profile(user)
+    return profile.role in {"manager", "admin"}
+
+
+def can_view_update(user, update):
+    if update.visibility == "public":
+        return True
+    if update.author_id == user.id:
+        return True
+    if update.visibility == "team":
+        viewer_profile = get_or_create_profile(user)
+        author_profile = get_or_create_profile(update.author)
+        return bool(viewer_profile.team_name and viewer_profile.team_name == author_profile.team_name)
+    return False
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -66,10 +90,13 @@ def register(request):
 
 @login_required
 def feed(request):
+    viewer_profile = get_or_create_profile(request.user)
     if request.method == 'POST':
         action = request.POST.get("action", "create_update")
         if action == "add_comment":
             update = get_object_or_404(FieldUpdate, pk=request.POST.get("update_id"))
+            if not can_view_update(request.user, update):
+                return HttpResponseForbidden("You don't have permission to comment on this update.")
             comment_text = request.POST.get("comment_content", "").strip()
             if comment_text:
                 Comment.objects.create(update=update, author=request.user, content=comment_text)
@@ -82,6 +109,8 @@ def feed(request):
             return redirect('updates:feed')
         if action == "toggle_reaction":
             update = get_object_or_404(FieldUpdate, pk=request.POST.get("update_id"))
+            if not can_view_update(request.user, update):
+                return HttpResponseForbidden("You don't have permission to react to this update.")
             reaction_type = request.POST.get("reaction_type", "ack")
             valid_types = {choice[0] for choice in Reaction.REACTION_CHOICES}
             if reaction_type not in valid_types:
@@ -113,7 +142,7 @@ def feed(request):
                 actor=request.user,
                 action="create",
                 update_obj=field_update,
-                metadata=f"status={field_update.status};category={field_update.category};pinned={field_update.is_pinned}",
+                metadata=f"status={field_update.status};category={field_update.category};visibility={field_update.visibility};pinned={field_update.is_pinned}",
             )
             return redirect('updates:feed')
     else:
@@ -122,6 +151,7 @@ def feed(request):
     # Get filters from GET parameters
     category_filter = request.GET.get('category')
     status_filter = request.GET.get('status', '').strip()
+    visibility_filter = request.GET.get('visibility', '').strip()
     query = request.GET.get('q', '').strip()
     author_filter = request.GET.get('author', '').strip()
     tag_filter = request.GET.get('tag', '').strip().lstrip('#').lower()
@@ -135,11 +165,19 @@ def feed(request):
         'reactions__user',
     ).all()
 
+    # Visibility: public to all, private to owner, team-only to same-team members.
+    visibility_q = Q(visibility="public") | Q(author=request.user)
+    if viewer_profile.team_name:
+        visibility_q |= Q(visibility="team", author__profile__team_name=viewer_profile.team_name)
+    updates = updates.filter(visibility_q)
+
     # Filter updates by category if specified
     if category_filter:
         updates = updates.filter(category=category_filter)
     if status_filter:
         updates = updates.filter(status=status_filter)
+    if visibility_filter:
+        updates = updates.filter(visibility=visibility_filter)
 
     # Apply text search across title, content, and author username.
     if query:
@@ -184,6 +222,7 @@ def feed(request):
         'page_obj': page_obj,
         'query': query,
         'status_filter': status_filter,
+        'visibility_filter': visibility_filter,
         'author_filter': author_filter,
         'tag_filter': tag_filter,
         'pinned_filter': pinned_filter,
@@ -192,6 +231,7 @@ def feed(request):
         'selected_category': category_filter,
         'popular_tags': Tag.objects.order_by('name')[:15],
         'reaction_choices': Reaction.REACTION_CHOICES,
+        'viewer_profile': viewer_profile,
     })
 
 
@@ -200,13 +240,14 @@ def edit_update(request, pk):
     update = get_object_or_404(FieldUpdate, pk=pk)
     
     # Check if user is the author
-    if update.author != request.user:
+    if not can_manage_update(request.user, update):
         return HttpResponseForbidden("You don't have permission to edit this update.")
     
     if request.method == 'POST':
         previous_title = update.title
         previous_category = update.category
         previous_status = update.status
+        previous_visibility = update.visibility
         previous_is_pinned = update.is_pinned
         form = FieldUpdateForm(request.POST, instance=update)
         if form.is_valid():
@@ -226,6 +267,8 @@ def edit_update(request, pk):
                     update_obj=edited_update,
                     metadata=f"{previous_status}->{edited_update.status}",
                 )
+            if previous_visibility != edited_update.visibility:
+                changed_fields.append("visibility")
             log_update_event(
                 actor=request.user,
                 action="edit",
@@ -247,7 +290,7 @@ def delete_update(request, pk):
     update = get_object_or_404(FieldUpdate, pk=pk)
     
     # Check if user is the author
-    if update.author != request.user:
+    if not can_manage_update(request.user, update):
         return HttpResponseForbidden("You don't have permission to delete this update.")
     
     if request.method == 'POST':
@@ -255,7 +298,7 @@ def delete_update(request, pk):
             actor=request.user,
             action="delete",
             update_obj=update,
-            metadata=f"status={update.status};category={update.category}",
+            metadata=f"status={update.status};category={update.category};visibility={update.visibility}",
         )
         update.delete()
         return redirect('updates:feed')
@@ -268,11 +311,24 @@ def delete_update(request, pk):
 @login_required
 def user_profile(request, user_id):
     profile_user = get_object_or_404(User, pk=user_id)
-    user_updates = FieldUpdate.objects.filter(author=profile_user).order_by('-created_at')
+    profile_user_profile = get_or_create_profile(profile_user)
+    viewer_profile = get_or_create_profile(request.user)
+    visibility_q = Q(visibility="public") | Q(author=request.user)
+    if viewer_profile.team_name and viewer_profile.team_name == profile_user_profile.team_name:
+        visibility_q |= Q(visibility="team")
+    if request.user == profile_user:
+        visibility_q |= Q(visibility="private")
+
+    user_updates = (
+        FieldUpdate.objects.filter(author=profile_user)
+        .filter(visibility_q)
+        .order_by('-created_at')
+    )
     post_count = user_updates.count()
     
     return render(request, 'updates/profile.html', {
         'profile_user': profile_user,
+        'profile_user_profile': profile_user_profile,
         'user_updates': user_updates,
         'post_count': post_count
     })

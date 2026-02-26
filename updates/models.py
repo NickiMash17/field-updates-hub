@@ -2,6 +2,8 @@ import re
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 HASHTAG_PATTERN = re.compile(r"(?<!\w)#([A-Za-z0-9_]+)")
@@ -18,6 +20,25 @@ class Tag(models.Model):
         return f"#{self.name}"
 
 
+class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ("field_agent", "Field Agent"),
+        ("manager", "Manager"),
+        ("admin", "Admin"),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="field_agent")
+    team_name = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["user__username"]
+
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
+
+
 class FieldUpdate(models.Model):
     CATEGORY_CHOICES = [
         ('pest', 'Pest'),
@@ -31,6 +52,11 @@ class FieldUpdate(models.Model):
         ("in_progress", "In Progress"),
         ("resolved", "Resolved"),
     ]
+    VISIBILITY_CHOICES = [
+        ("public", "Public"),
+        ("team", "Team Only"),
+        ("private", "Private"),
+    ]
     
     author = models.ForeignKey(
         User, 
@@ -41,6 +67,7 @@ class FieldUpdate(models.Model):
     content = models.TextField()
     is_pinned = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
+    visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default="public")
     category = models.CharField(
         max_length=20, 
         choices=CATEGORY_CHOICES
@@ -140,3 +167,9 @@ class UpdateAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.actor.username} {self.action} ({self.update_title_snapshot or self.field_update_id})"
+
+
+@receiver(post_save, sender=User)
+def ensure_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)

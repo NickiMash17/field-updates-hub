@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Comment, FieldUpdate, Reaction, UpdateAuditLog
+from .models import Comment, FieldUpdate, Reaction, UpdateAuditLog, UserProfile
 
 
 class AuthAndFeedTests(TestCase):
@@ -20,6 +20,8 @@ class AuthAndFeedTests(TestCase):
             email="farmer2@example.com",
             password="StrongPass123!",
         )
+        UserProfile.objects.filter(user=self.user).update(team_name="North", role="field_agent")
+        UserProfile.objects.filter(user=self.other_user).update(team_name="South", role="field_agent")
 
     def test_feed_requires_authentication(self):
         response = self.client.get(reverse("updates:feed"))
@@ -51,6 +53,7 @@ class AuthAndFeedTests(TestCase):
                 "content": "Saw pests on northern section.",
                 "category": "pest",
                 "status": "open",
+                "visibility": "public",
             },
         )
         self.assertRedirects(response, reverse("updates:feed"))
@@ -215,6 +218,89 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["updates"]), [resolved])
 
+    def test_feed_visibility_rules_show_public_team_and_own_private(self):
+        same_team_user = User.objects.create_user(
+            username="farmer3",
+            email="farmer3@example.com",
+            password="StrongPass123!",
+        )
+        UserProfile.objects.filter(user=same_team_user).update(team_name="North", role="field_agent")
+
+        public_post = FieldUpdate.objects.create(
+            author=self.other_user,
+            title="Public",
+            content="Anyone can see",
+            category="general",
+            visibility="public",
+        )
+        team_post = FieldUpdate.objects.create(
+            author=same_team_user,
+            title="North team",
+            content="North only",
+            category="general",
+            visibility="team",
+        )
+        own_private = FieldUpdate.objects.create(
+            author=self.user,
+            title="My private",
+            content="My notes",
+            category="general",
+            visibility="private",
+        )
+        hidden_private = FieldUpdate.objects.create(
+            author=self.other_user,
+            title="Hidden private",
+            content="Do not show",
+            category="general",
+            visibility="private",
+        )
+        hidden_team = FieldUpdate.objects.create(
+            author=self.other_user,
+            title="South team",
+            content="South only",
+            category="general",
+            visibility="team",
+        )
+
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(reverse("updates:feed"))
+        updates = list(response.context["updates"])
+
+        self.assertIn(public_post, updates)
+        self.assertIn(team_post, updates)
+        self.assertIn(own_private, updates)
+        self.assertNotIn(hidden_private, updates)
+        self.assertNotIn(hidden_team, updates)
+
+    def test_manager_can_edit_and_delete_other_users_update(self):
+        UserProfile.objects.filter(user=self.other_user).update(role="manager", team_name="South")
+        update = FieldUpdate.objects.create(
+            author=self.user,
+            title="Managed post",
+            content="Needs supervisor edit",
+            category="general",
+        )
+        self.client.login(username="farmer2", password="StrongPass123!")
+
+        edit_response = self.client.post(
+            reverse("updates:edit", args=[update.pk]),
+            {
+                "title": "Manager edited",
+                "content": "Manager changed content",
+                "category": "general",
+                "status": "in_progress",
+                "visibility": "team",
+            },
+        )
+        self.assertRedirects(edit_response, reverse("updates:feed"))
+        update.refresh_from_db()
+        self.assertEqual(update.title, "Manager edited")
+        self.assertEqual(update.status, "in_progress")
+
+        delete_response = self.client.post(reverse("updates:delete", args=[update.pk]))
+        self.assertRedirects(delete_response, reverse("updates:feed"))
+        self.assertFalse(FieldUpdate.objects.filter(pk=update.pk).exists())
+
     def test_owner_can_edit_update(self):
         update = FieldUpdate.objects.create(
             author=self.user,
@@ -230,6 +316,7 @@ class AuthAndFeedTests(TestCase):
                 "content": "Updated content",
                 "category": "crop",
                 "status": "in_progress",
+                "visibility": "team",
                 "is_pinned": "on",
             },
         )
@@ -238,6 +325,7 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(update.title, "Updated title")
         self.assertEqual(update.category, "crop")
         self.assertEqual(update.status, "in_progress")
+        self.assertEqual(update.visibility, "team")
         self.assertTrue(update.is_pinned)
 
     def test_feed_post_can_add_comment_to_update(self):
@@ -322,6 +410,7 @@ class AuthAndFeedTests(TestCase):
                 "content": "No permission",
                 "category": "crop",
                 "status": "resolved",
+                "visibility": "public",
             },
         )
         self.assertEqual(response.status_code, 403)
@@ -379,6 +468,7 @@ class AuthAndFeedTests(TestCase):
                 "content": "Track every action",
                 "category": "general",
                 "status": "open",
+                "visibility": "public",
             },
         )
         self.assertRedirects(create_response, reverse("updates:feed"))
@@ -393,6 +483,7 @@ class AuthAndFeedTests(TestCase):
                 "content": "Track every action",
                 "category": "general",
                 "status": "resolved",
+                "visibility": "team",
             },
         )
         self.assertRedirects(edit_response, reverse("updates:feed"))

@@ -47,6 +47,11 @@
                     {{ form.status }}
                 </div>
 
+                <div>
+                    <label for="{{ form.visibility.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Visibility</label>
+                    {{ form.visibility }}
+                </div>
+
                 <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                     {{ form.is_pinned }}
                     Pin this update to the top
