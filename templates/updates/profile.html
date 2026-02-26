@@ -82,6 +82,28 @@
                     {{ update.content|linebreaks }}
                 </div>
 
+                {% if update.attachments.all %}
+                <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {% for attachment in update.attachments.all %}
+                        {% if attachment.is_image %}
+                        <a href="{{ attachment.file.url }}" target="_blank" class="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                            <img src="{{ attachment.file.url }}" alt="{{ attachment.file_name }}" 
+                                 class="h-32 w-full object-cover transition group-hover:scale-105">
+                            <div class="absolute inset-0 bg-black/0 transition group-hover:bg-black/10"></div>
+                        </a>
+                        {% else %}
+                        <a href="{{ attachment.file.url }}" target="_blank" 
+                           class="flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p class="text-center text-xs font-medium text-slate-600">{{ attachment.file_name|truncatechars:15 }}</p>
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {% if update.author == user %}
                 <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
                     <a href="{% url 'updates:edit' update.pk %}" class="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-700 transition hover:bg-green-100">
