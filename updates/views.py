@@ -9,7 +9,9 @@ from django import forms
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.db.models import Q
-from .models import FieldUpdate
+from django.utils.dateparse import parse_date
+
+from .models import FieldUpdate, Tag
 from .forms import FieldUpdateForm
 
 
@@ -66,12 +68,17 @@ def feed(request):
     # Get filters from GET parameters
     category_filter = request.GET.get('category')
     query = request.GET.get('q', '').strip()
+    author_filter = request.GET.get('author', '').strip()
+    tag_filter = request.GET.get('tag', '').strip().lstrip('#').lower()
+    pinned_filter = request.GET.get('pinned', '').strip()
+    from_date = parse_date(request.GET.get('from_date', '').strip())
+    to_date = parse_date(request.GET.get('to_date', '').strip())
     
+    updates = FieldUpdate.objects.select_related('author').prefetch_related('tags').all()
+
     # Filter updates by category if specified
     if category_filter:
-        updates = FieldUpdate.objects.filter(category=category_filter)
-    else:
-        updates = FieldUpdate.objects.all()
+        updates = updates.filter(category=category_filter)
 
     # Apply text search across title, content, and author username.
     if query:
@@ -80,9 +87,25 @@ def feed(request):
             | Q(content__icontains=query)
             | Q(author__username__icontains=query)
         )
+
+    if author_filter:
+        updates = updates.filter(author__username__icontains=author_filter)
+
+    if tag_filter:
+        updates = updates.filter(tags__name__iexact=tag_filter)
+
+    if pinned_filter == 'only':
+        updates = updates.filter(is_pinned=True)
+    elif pinned_filter == 'exclude':
+        updates = updates.filter(is_pinned=False)
+
+    if from_date:
+        updates = updates.filter(created_at__date__gte=from_date)
+    if to_date:
+        updates = updates.filter(created_at__date__lte=to_date)
     
-    # Order by newest first (handled by model Meta)
-    updates = updates.order_by('-created_at')
+    # Show pinned updates first, then newest.
+    updates = updates.distinct().order_by('-is_pinned', '-created_at')
     
     paginator = Paginator(updates, 10)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -92,7 +115,13 @@ def feed(request):
         'updates': page_obj.object_list,
         'page_obj': page_obj,
         'query': query,
+        'author_filter': author_filter,
+        'tag_filter': tag_filter,
+        'pinned_filter': pinned_filter,
+        'from_date_value': request.GET.get('from_date', '').strip(),
+        'to_date_value': request.GET.get('to_date', '').strip(),
         'selected_category': category_filter,
+        'popular_tags': Tag.objects.order_by('name')[:15],
     })
 
 

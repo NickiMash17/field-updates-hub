@@ -11,7 +11,7 @@
                 <h1 class="mt-2 text-3xl font-extrabold tracking-tight">Community Updates Feed</h1>
                 <p class="mt-2 text-sm text-green-100/90">Share field conditions, monitor urgent trends, and coordinate faster.</p>
             </div>
-            <form method="get" class="grid grid-cols-1 gap-2 rounded-2xl border border-white/20 bg-white/10 p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <form method="get" class="grid grid-cols-1 gap-2 rounded-2xl border border-white/20 bg-white/10 p-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label for="category-filter" class="sr-only">Filter by category</label>
                 <label for="search-query" class="sr-only">Search updates</label>
                 <select id="category-filter" name="category" class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
@@ -24,9 +24,31 @@
                 </select>
                 <input id="search-query" name="q" type="text" value="{{ query }}" placeholder="Search title, content, or user"
                        class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                <input name="author" type="text" value="{{ author_filter }}" placeholder="Filter by author"
+                       class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                <input name="tag" type="text" value="{{ tag_filter }}" placeholder="Tag (example: urgent)"
+                       class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                <select name="pinned" class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                    <option value="">Pinned + regular</option>
+                    <option value="only" {% if pinned_filter == 'only' %}selected{% endif %}>Pinned only</option>
+                    <option value="exclude" {% if pinned_filter == 'exclude' %}selected{% endif %}>Exclude pinned</option>
+                </select>
+                <input name="from_date" type="date" value="{{ from_date_value }}"
+                       class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                <input name="to_date" type="date" value="{{ to_date_value }}"
+                       class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
                 <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700">Apply</button>
             </form>
         </div>
+        {% if popular_tags %}
+        <div class="mt-4 flex flex-wrap gap-2">
+            {% for feed_tag in popular_tags %}
+                <a href="?tag={{ feed_tag.name }}" class="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20">
+                    #{{ feed_tag.name }}
+                </a>
+            {% endfor %}
+        </div>
+        {% endif %}
     </section>
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -55,6 +77,10 @@
                         <label for="{{ form.category.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Category</label>
                         {{ form.category }}
                     </div>
+                    <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                        {{ form.is_pinned }}
+                        Pin this update to the top
+                    </label>
                     <div>
                         <label for="{{ form.content.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Content</label>
                         {{ form.content }}
@@ -78,6 +104,16 @@
                         Showing all categories across the community.
                     {% endif %}
                 </p>
+                {% if tag_filter or author_filter or pinned_filter or from_date_value or to_date_value %}
+                <p class="mt-1 text-xs font-medium text-slate-500">
+                    Extra filters:
+                    {% if author_filter %}author={{ author_filter }} {% endif %}
+                    {% if tag_filter %}tag=#{{ tag_filter }} {% endif %}
+                    {% if pinned_filter %}pinned={{ pinned_filter }} {% endif %}
+                    {% if from_date_value %}from={{ from_date_value }} {% endif %}
+                    {% if to_date_value %}to={{ to_date_value }}{% endif %}
+                </p>
+                {% endif %}
             </div>
 
             {% if updates %}
@@ -91,7 +127,22 @@
                                 by <a href="{% url 'updates:profile' update.author.pk %}" class="font-semibold text-earth-700 hover:text-earth-500">{{ update.author.username }}</a>
                                 <span class="px-1">&bull;</span>{{ update.created_at|date:"M d, Y H:i" }}
                             </p>
+                            {% if update.tags.all %}
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                {% for update_tag in update.tags.all %}
+                                <a href="?tag={{ update_tag.name }}" class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                                    #{{ update_tag.name }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                        {% if update.is_pinned %}
+                            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                                Pinned
+                            </span>
+                        {% endif %}
                         {% if update.category == 'pest' %}
                             <span class="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
                                 {{ update.get_category_display }}
@@ -113,6 +164,7 @@
                                 {{ update.get_category_display }}
                             </span>
                         {% endif %}
+                        </div>
                     </div>
 
                     <div class="prose prose-sm max-w-none text-slate-700">
@@ -152,7 +204,7 @@
             {% if page_obj and page_obj.paginator.num_pages > 1 %}
             <nav class="mt-6 flex items-center justify-center gap-2" aria-label="Pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}"
+                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         Previous
                     </a>
@@ -161,7 +213,7 @@
                     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                 </span>
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}"
+                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         Next
                     </a>

@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import FieldUpdate
 
@@ -115,6 +118,81 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(first_page.context["page_obj"].number, 1)
         self.assertEqual(second_page.context["page_obj"].number, 2)
 
+    def test_feed_shows_pinned_updates_first(self):
+        regular = FieldUpdate.objects.create(
+            author=self.user,
+            title="Regular update",
+            content="Standard post",
+            category="general",
+        )
+        pinned = FieldUpdate.objects.create(
+            author=self.user,
+            title="Pinned update",
+            content="Important note",
+            category="general",
+            is_pinned=True,
+        )
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(reverse("updates:feed"))
+
+        updates = list(response.context["updates"])
+        self.assertEqual(updates[0].pk, pinned.pk)
+        self.assertEqual(updates[1].pk, regular.pk)
+
+    def test_feed_extracts_hashtags_and_filters_by_tag(self):
+        tagged = FieldUpdate.objects.create(
+            author=self.user,
+            title="Weather watch #Urgent",
+            content="Rain band approaching #NorthField",
+            category="weather",
+        )
+        untagged = FieldUpdate.objects.create(
+            author=self.user,
+            title="General note",
+            content="No hashtag here",
+            category="general",
+        )
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(reverse("updates:feed"), {"tag": "urgent"})
+
+        tagged.refresh_from_db()
+        self.assertSetEqual(set(tagged.tags.values_list("name", flat=True)), {"urgent", "northfield"})
+        self.assertEqual(list(response.context["updates"]), [tagged])
+        self.assertNotIn(untagged, list(response.context["updates"]))
+
+    def test_feed_advanced_filters_by_author_pinned_and_date(self):
+        old_post = FieldUpdate.objects.create(
+            author=self.user,
+            title="Old pinned",
+            content="Old item #archive",
+            category="general",
+            is_pinned=True,
+        )
+        other_post = FieldUpdate.objects.create(
+            author=self.other_user,
+            title="Other user post",
+            content="Current item",
+            category="general",
+            is_pinned=True,
+        )
+
+        old_date = timezone.now() - timedelta(days=10)
+        FieldUpdate.objects.filter(pk=old_post.pk).update(created_at=old_date)
+        old_post.refresh_from_db()
+
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(
+            reverse("updates:feed"),
+            {
+                "author": "farmer2",
+                "pinned": "only",
+                "from_date": (timezone.now() - timedelta(days=2)).date().isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["updates"]), [other_post])
+
     def test_owner_can_edit_update(self):
         update = FieldUpdate.objects.create(
             author=self.user,
@@ -129,12 +207,14 @@ class AuthAndFeedTests(TestCase):
                 "title": "Updated title",
                 "content": "Updated content",
                 "category": "crop",
+                "is_pinned": "on",
             },
         )
         self.assertRedirects(response, reverse("updates:feed"))
         update.refresh_from_db()
         self.assertEqual(update.title, "Updated title")
         self.assertEqual(update.category, "crop")
+        self.assertTrue(update.is_pinned)
 
     def test_non_owner_cannot_edit_update(self):
         update = FieldUpdate.objects.create(
