@@ -26,6 +26,11 @@ class FieldUpdate(models.Model):
         ('fertilizer', 'Fertilizer'),
         ('general', 'General'),
     ]
+    STATUS_CHOICES = [
+        ("open", "Open"),
+        ("in_progress", "In Progress"),
+        ("resolved", "Resolved"),
+    ]
     
     author = models.ForeignKey(
         User, 
@@ -35,6 +40,7 @@ class FieldUpdate(models.Model):
     title = models.CharField(max_length=200)
     content = models.TextField()
     is_pinned = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open")
     category = models.CharField(
         max_length=20, 
         choices=CATEGORY_CHOICES
@@ -104,3 +110,33 @@ class Reaction(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.update_id} ({self.reaction_type})"
+
+
+class UpdateAuditLog(models.Model):
+    ACTION_CHOICES = [
+        ("create", "Create"),
+        ("edit", "Edit"),
+        ("delete", "Delete"),
+        ("comment_add", "Comment Added"),
+        ("reaction_toggle", "Reaction Toggled"),
+        ("status_change", "Status Changed"),
+    ]
+
+    field_update = models.ForeignKey(
+        FieldUpdate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+    )
+    actor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="update_audit_logs")
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    metadata = models.TextField(blank=True)
+    update_title_snapshot = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.actor.username} {self.action} ({self.update_title_snapshot or self.field_update_id})"

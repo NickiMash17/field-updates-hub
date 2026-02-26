@@ -12,8 +12,18 @@ from django.db.models import Q
 from django.utils.dateparse import parse_date
 from collections import Counter
 
-from .models import Comment, FieldUpdate, Reaction, Tag
+from .models import Comment, FieldUpdate, Reaction, Tag, UpdateAuditLog
 from .forms import FieldUpdateForm
+
+
+def log_update_event(*, actor, action, update_obj=None, metadata=""):
+    UpdateAuditLog.objects.create(
+        field_update=update_obj,
+        actor=actor,
+        action=action,
+        metadata=metadata,
+        update_title_snapshot=(update_obj.title if update_obj else ""),
+    )
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -63,6 +73,12 @@ def feed(request):
             comment_text = request.POST.get("comment_content", "").strip()
             if comment_text:
                 Comment.objects.create(update=update, author=request.user, content=comment_text)
+                log_update_event(
+                    actor=request.user,
+                    action="comment_add",
+                    update_obj=update,
+                    metadata=f"comment_length={len(comment_text)}",
+                )
             return redirect('updates:feed')
         if action == "toggle_reaction":
             update = get_object_or_404(FieldUpdate, pk=request.POST.get("update_id"))
@@ -80,6 +96,12 @@ def feed(request):
                     user=request.user,
                     defaults={"reaction_type": reaction_type},
                 )
+            log_update_event(
+                actor=request.user,
+                action="reaction_toggle",
+                update_obj=update,
+                metadata=f"reaction_type={reaction_type}",
+            )
             return redirect('updates:feed')
 
         form = FieldUpdateForm(request.POST)
@@ -87,12 +109,19 @@ def feed(request):
             field_update = form.save(commit=False)
             field_update.author = request.user
             field_update.save()
+            log_update_event(
+                actor=request.user,
+                action="create",
+                update_obj=field_update,
+                metadata=f"status={field_update.status};category={field_update.category};pinned={field_update.is_pinned}",
+            )
             return redirect('updates:feed')
     else:
         form = FieldUpdateForm()
     
     # Get filters from GET parameters
     category_filter = request.GET.get('category')
+    status_filter = request.GET.get('status', '').strip()
     query = request.GET.get('q', '').strip()
     author_filter = request.GET.get('author', '').strip()
     tag_filter = request.GET.get('tag', '').strip().lstrip('#').lower()
@@ -109,6 +138,8 @@ def feed(request):
     # Filter updates by category if specified
     if category_filter:
         updates = updates.filter(category=category_filter)
+    if status_filter:
+        updates = updates.filter(status=status_filter)
 
     # Apply text search across title, content, and author username.
     if query:
@@ -152,6 +183,7 @@ def feed(request):
         'updates': page_updates,
         'page_obj': page_obj,
         'query': query,
+        'status_filter': status_filter,
         'author_filter': author_filter,
         'tag_filter': tag_filter,
         'pinned_filter': pinned_filter,
@@ -172,9 +204,34 @@ def edit_update(request, pk):
         return HttpResponseForbidden("You don't have permission to edit this update.")
     
     if request.method == 'POST':
+        previous_title = update.title
+        previous_category = update.category
+        previous_status = update.status
+        previous_is_pinned = update.is_pinned
         form = FieldUpdateForm(request.POST, instance=update)
         if form.is_valid():
-            form.save()
+            edited_update = form.save()
+            changed_fields = []
+            if previous_title != edited_update.title:
+                changed_fields.append("title")
+            if previous_category != edited_update.category:
+                changed_fields.append("category")
+            if previous_is_pinned != edited_update.is_pinned:
+                changed_fields.append("is_pinned")
+            if previous_status != edited_update.status:
+                changed_fields.append("status")
+                log_update_event(
+                    actor=request.user,
+                    action="status_change",
+                    update_obj=edited_update,
+                    metadata=f"{previous_status}->{edited_update.status}",
+                )
+            log_update_event(
+                actor=request.user,
+                action="edit",
+                update_obj=edited_update,
+                metadata="changed=" + (",".join(changed_fields) if changed_fields else "none"),
+            )
             return redirect('updates:feed')
     else:
         form = FieldUpdateForm(instance=update)
@@ -194,6 +251,12 @@ def delete_update(request, pk):
         return HttpResponseForbidden("You don't have permission to delete this update.")
     
     if request.method == 'POST':
+        log_update_event(
+            actor=request.user,
+            action="delete",
+            update_obj=update,
+            metadata=f"status={update.status};category={update.category}",
+        )
         update.delete()
         return redirect('updates:feed')
     

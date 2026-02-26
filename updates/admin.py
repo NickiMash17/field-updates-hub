@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Comment, FieldUpdate, Reaction, Tag
+from .models import Comment, FieldUpdate, Reaction, Tag, UpdateAuditLog
 
 
 @admin.register(Tag)
@@ -11,8 +11,8 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(FieldUpdate)
 class FieldUpdateAdmin(admin.ModelAdmin):
-    list_display = ['title', 'author', 'category', 'is_pinned', 'created_at']
-    list_filter = ['category', 'is_pinned', 'created_at']
+    list_display = ['title', 'author', 'category', 'status', 'is_pinned', 'created_at']
+    list_filter = ['category', 'status', 'is_pinned', 'created_at']
     search_fields = ['title', 'content', 'author__username', 'tags__name']
     readonly_fields = ['created_at', 'updated_at']
     filter_horizontal = ['tags']
@@ -30,3 +30,11 @@ class ReactionAdmin(admin.ModelAdmin):
     list_display = ["id", "update", "user", "reaction_type", "created_at"]
     list_filter = ["reaction_type", "created_at"]
     search_fields = ["user__username", "update__title"]
+
+
+@admin.register(UpdateAuditLog)
+class UpdateAuditLogAdmin(admin.ModelAdmin):
+    list_display = ["id", "action", "actor", "field_update", "update_title_snapshot", "created_at"]
+    list_filter = ["action", "created_at"]
+    search_fields = ["actor__username", "update_title_snapshot", "metadata"]
+    readonly_fields = ["created_at"]

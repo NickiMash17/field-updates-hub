@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Comment, FieldUpdate, Reaction
+from .models import Comment, FieldUpdate, Reaction, UpdateAuditLog
 
 
 class AuthAndFeedTests(TestCase):
@@ -50,6 +50,7 @@ class AuthAndFeedTests(TestCase):
                 "title": "Corn pests spotted",
                 "content": "Saw pests on northern section.",
                 "category": "pest",
+                "status": "open",
             },
         )
         self.assertRedirects(response, reverse("updates:feed"))
@@ -193,6 +194,27 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["updates"]), [other_post])
 
+    def test_feed_status_filter_returns_only_matching_status(self):
+        FieldUpdate.objects.create(
+            author=self.user,
+            title="Still open task",
+            content="Pending inspection",
+            category="general",
+            status="open",
+        )
+        resolved = FieldUpdate.objects.create(
+            author=self.user,
+            title="Fixed issue",
+            content="Completed successfully",
+            category="general",
+            status="resolved",
+        )
+        self.client.login(username="farmer1", password="StrongPass123!")
+        response = self.client.get(reverse("updates:feed"), {"status": "resolved"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["updates"]), [resolved])
+
     def test_owner_can_edit_update(self):
         update = FieldUpdate.objects.create(
             author=self.user,
@@ -207,6 +229,7 @@ class AuthAndFeedTests(TestCase):
                 "title": "Updated title",
                 "content": "Updated content",
                 "category": "crop",
+                "status": "in_progress",
                 "is_pinned": "on",
             },
         )
@@ -214,6 +237,7 @@ class AuthAndFeedTests(TestCase):
         update.refresh_from_db()
         self.assertEqual(update.title, "Updated title")
         self.assertEqual(update.category, "crop")
+        self.assertEqual(update.status, "in_progress")
         self.assertTrue(update.is_pinned)
 
     def test_feed_post_can_add_comment_to_update(self):
@@ -297,6 +321,7 @@ class AuthAndFeedTests(TestCase):
                 "title": "Attempted overwrite",
                 "content": "No permission",
                 "category": "crop",
+                "status": "resolved",
             },
         )
         self.assertEqual(response.status_code, 403)
@@ -344,3 +369,60 @@ class AuthAndFeedTests(TestCase):
         response = self.client.get(reverse("updates:profile", args=[self.user.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["post_count"], 2)
+
+    def test_audit_log_created_for_create_edit_delete_comment_and_reaction(self):
+        self.client.login(username="farmer1", password="StrongPass123!")
+        create_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "title": "Audit target",
+                "content": "Track every action",
+                "category": "general",
+                "status": "open",
+            },
+        )
+        self.assertRedirects(create_response, reverse("updates:feed"))
+        update = FieldUpdate.objects.get(title="Audit target")
+
+        self.assertTrue(UpdateAuditLog.objects.filter(field_update=update, action="create", actor=self.user).exists())
+
+        edit_response = self.client.post(
+            reverse("updates:edit", args=[update.pk]),
+            {
+                "title": "Audit target updated",
+                "content": "Track every action",
+                "category": "general",
+                "status": "resolved",
+            },
+        )
+        self.assertRedirects(edit_response, reverse("updates:feed"))
+        self.assertTrue(UpdateAuditLog.objects.filter(field_update=update, action="edit").exists())
+        self.assertTrue(UpdateAuditLog.objects.filter(field_update=update, action="status_change").exists())
+
+        comment_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "add_comment",
+                "update_id": update.pk,
+                "comment_content": "Audit comment",
+            },
+        )
+        self.assertRedirects(comment_response, reverse("updates:feed"))
+        self.assertTrue(UpdateAuditLog.objects.filter(field_update=update, action="comment_add").exists())
+
+        reaction_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "toggle_reaction",
+                "update_id": update.pk,
+                "reaction_type": "ack",
+            },
+        )
+        self.assertRedirects(reaction_response, reverse("updates:feed"))
+        self.assertTrue(UpdateAuditLog.objects.filter(field_update=update, action="reaction_toggle").exists())
+
+        delete_response = self.client.post(reverse("updates:delete", args=[update.pk]))
+        self.assertRedirects(delete_response, reverse("updates:feed"))
+        self.assertTrue(
+            UpdateAuditLog.objects.filter(action="delete", update_title_snapshot="Audit target updated").exists()
+        )

@@ -22,6 +22,12 @@
                     <option value="fertilizer" {% if request.GET.category == 'fertilizer' %}selected{% endif %}>Fertilizer</option>
                     <option value="general" {% if request.GET.category == 'general' %}selected{% endif %}>General</option>
                 </select>
+                <select name="status" class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
+                    <option value="">All Statuses</option>
+                    <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
+                    <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Resolved</option>
+                </select>
                 <input id="search-query" name="q" type="text" value="{{ query }}" placeholder="Search title, content, or user"
                        class="w-full rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-white/30">
                 <input name="author" type="text" value="{{ author_filter }}" placeholder="Filter by author"
@@ -78,6 +84,10 @@
                         <label for="{{ form.category.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Category</label>
                         {{ form.category }}
                     </div>
+                    <div>
+                        <label for="{{ form.status.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Status</label>
+                        {{ form.status }}
+                    </div>
                     <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                         {{ form.is_pinned }}
                         Pin this update to the top
@@ -105,9 +115,10 @@
                         Showing all categories across the community.
                     {% endif %}
                 </p>
-                {% if tag_filter or author_filter or pinned_filter or from_date_value or to_date_value %}
+                {% if status_filter or tag_filter or author_filter or pinned_filter or from_date_value or to_date_value %}
                 <p class="mt-1 text-xs font-medium text-slate-500">
                     Extra filters:
+                    {% if status_filter %}status={{ status_filter }} {% endif %}
                     {% if author_filter %}author={{ author_filter }} {% endif %}
                     {% if tag_filter %}tag=#{{ tag_filter }} {% endif %}
                     {% if pinned_filter %}pinned={{ pinned_filter }} {% endif %}
@@ -143,6 +154,13 @@
                             <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
                                 Pinned
                             </span>
+                        {% endif %}
+                        {% if update.status == 'open' %}
+                            <span class="inline-flex items-center rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Open</span>
+                        {% elif update.status == 'in_progress' %}
+                            <span class="inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">In Progress</span>
+                        {% else %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Resolved</span>
                         {% endif %}
                         {% if update.category == 'pest' %}
                             <span class="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
@@ -252,7 +270,7 @@
             {% if page_obj and page_obj.paginator.num_pages > 1 %}
             <nav class="mt-6 flex items-center justify-center gap-2" aria-label="Pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
+                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         Previous
                     </a>
@@ -261,7 +279,7 @@
                     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                 </span>
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
+                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if author_filter %}&author={{ author_filter|urlencode }}{% endif %}{% if tag_filter %}&tag={{ tag_filter|urlencode }}{% endif %}{% if pinned_filter %}&pinned={{ pinned_filter|urlencode }}{% endif %}{% if from_date_value %}&from_date={{ from_date_value|urlencode }}{% endif %}{% if to_date_value %}&to_date={{ to_date_value|urlencode }}{% endif %}"
                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         Next
                     </a>
