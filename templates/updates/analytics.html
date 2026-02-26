@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics Dashboard - Field Updates Hub{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <section class="mb-8 rounded-3xl border border-earth-200 bg-gradient-to-r from-green-800 via-green-700 to-green-700 p-6 text-white shadow-soft sm:p-8">
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-200">Dashboard</p>
+        <h1 class="mt-2 text-3xl font-extrabold tracking-tight">Analytics & Insights</h1>
+        <p class="mt-2 text-sm text-green-100/90">Community activity metrics and trends</p>
+    </section>
+
+    <!-- Key Metrics Cards -->
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Total Updates</p>
+            <p class="mt-2 text-4xl font-extrabold text-green-700">{{ total_updates }}</p>
+            <p class="mt-1 text-xs text-slate-500">{% if pinned_count %}{{ pinned_count }} pinned{% endif %}</p>
+        </div>
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Comments</p>
+            <p class="mt-2 text-4xl font-extrabold text-blue-700">{{ total_comments }}</p>
+            <p class="mt-1 text-xs text-slate-500">Community engagement</p>
+        </div>
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Reactions</p>
+            <p class="mt-2 text-4xl font-extrabold text-amber-700">{{ total_reactions }}</p>
+            <p class="mt-1 text-xs text-slate-500">Acknowledgements & support</p>
+        </div>
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Active Users</p>
+            <p class="mt-2 text-4xl font-extrabold text-purple-700">{{ total_users }}</p>
+            <p class="mt-1 text-xs text-slate-500">Contributing members</p>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="mb-8 rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Last 7 Days Activity</h2>
+        <p class="mt-1 text-sm text-slate-600">{{ recent_updates }} updates and {{ recent_comments }} comments in the past week</p>
+        <div class="mt-6 flex items-end justify-between gap-2" style="height: 120px;">
+            {% for day in daily_activity %}
+            <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="w-full rounded-t-lg bg-green-500 transition hover:bg-green-600" 
+                     style="height: {% if day.count > 0 %}{{ day.count|add:20 }}{% else %}10{% endif %}px;"
+                     title="{{ day.count }} updates"></div>
+                <span class="text-xs font-medium text-slate-600">{{ day.date }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- Category Breakdown -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">By Category</h3>
+            <div class="mt-4 space-y-3">
+                {% for stat in category_stats %}
+                <div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-medium text-slate-700">{{ stat.name }}</span>
+                        <span class="font-bold text-slate-900">{{ stat.count }}</span>
+                    </div>
+                    <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full {% if stat.code == 'pest' %}bg-red-500{% elif stat.code == 'weather' %}bg-blue-500{% elif stat.code == 'crop' %}bg-green-500{% elif stat.code == 'fertilizer' %}bg-yellow-500{% else %}bg-gray-500{% endif %}" 
+                             style="width: {{ stat.percentage }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">By Status</h3>
+            <div class="mt-4 space-y-3">
+                {% for stat in status_stats %}
+                <div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-medium text-slate-700">{{ stat.name }}</span>
+                        <span class="font-bold text-slate-900">{{ stat.count }}</span>
+                    </div>
+                    <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full {% if stat.code == 'open' %}bg-red-500{% elif stat.code == 'in_progress' %}bg-amber-500{% else %}bg-green-500{% endif %}" 
+                             style="width: {{ stat.percentage }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Visibility Breakdown -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">By Visibility</h3>
+            <div class="mt-4 space-y-3">
+                {% for stat in visibility_stats %}
+                <div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-medium text-slate-700">{{ stat.name }}</span>
+                        <span class="font-bold text-slate-900">{{ stat.count }}</span>
+                    </div>
+                    <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div class="h-full rounded-full {% if stat.code == 'public' %}bg-green-500{% elif stat.code == 'team' %}bg-blue-500{% else %}bg-purple-500{% endif %}" 
+                             style="width: {{ stat.percentage }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <!-- Top Contributors -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">Top Contributors</h3>
+            <div class="mt-4 space-y-2">
+                {% for contributor in top_contributors %}
+                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
+                    <a href="{% url 'updates:profile' contributor.id %}" class="flex items-center gap-3 font-medium text-slate-700 hover:text-green-700">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+                            {{ contributor.username|upper|slice:":1" }}
+                        </span>
+                        {{ contributor.username }}
+                    </a>
+                    <span class="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">{{ contributor.post_count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Top Tags -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">Top Tags</h3>
+            <div class="mt-4 flex flex-wrap gap-2">
+                {% for tag in top_tags %}
+                <a href="{% url 'updates:feed' %}?tag={{ tag.name }}" 
+                   class="flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100">
+                    #{{ tag.name }}
+                    <span class="rounded-full bg-green-200 px-2 py-0.5 text-xs font-bold">{{ tag.usage_count }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <!-- Most Reacted Updates -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">Most Reacted Updates</h3>
+            <div class="mt-4 space-y-3">
+                {% for update in most_reacted %}
+                <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <h4 class="font-semibold text-slate-900">{{ update.title|truncatewords:8 }}</h4>
+                    <p class="mt-1 text-xs text-slate-600">by {{ update.author.username }}</p>
+                    <p class="mt-2 text-sm font-bold text-amber-700">{{ update.reaction_count }} reactions</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Most Commented Updates -->
+        <div class="rounded-2xl border border-earth-100 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-bold text-slate-900">Most Commented Updates</h3>
+            <div class="mt-4 space-y-3">
+                {% for update in most_commented %}
+                <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <h4 class="font-semibold text-slate-900">{{ update.title|truncatewords:8 }}</h4>
+                    <p class="mt-1 text-xs text-slate-600">by {{ update.author.username }}</p>
+                    <p class="mt-2 text-sm font-bold text-blue-700">{{ update.comment_count }} comments</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8 flex justify-center gap-4">
+        <a href="{% url 'updates:feed' %}" 
+           class="rounded-xl border border-green-200 bg-green-50 px-6 py-3 font-semibold text-green-700 transition hover:bg-green-100">
+            Back to Feed
+        </a>
+        <a href="{% url 'updates:export_csv' %}" 
+           class="rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-700">
+            Export All Data
+        </a>
+    </div>
+</div>
+{% endblock %}

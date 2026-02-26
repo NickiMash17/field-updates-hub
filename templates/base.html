@@ -50,6 +50,9 @@
                     <a href="{% url 'updates:feed' %}" class="rounded-lg px-3 py-2 text-sm font-semibold text-green-50 transition hover:bg-green-700">
                         Feed
                     </a>
+                    <a href="{% url 'updates:analytics' %}" class="rounded-lg px-3 py-2 text-sm font-semibold text-green-50 transition hover:bg-green-700">
+                        Analytics
+                    </a>
                     <a href="{% url 'updates:profile' user.pk %}" class="hidden items-center gap-2 rounded-lg border border-green-700 bg-green-700/70 px-3 py-2 sm:flex">
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-green-800">
                             {{ user.username|upper|slice:":1" }}
