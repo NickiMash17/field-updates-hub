@@ -65,6 +65,44 @@
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <aside class="xl:col-span-4">
+            {% if saved_searches %}
+            <div class="mb-6 rounded-2xl border border-amber-100 bg-amber-50/50 p-5 shadow-sm">
+                <h3 class="text-sm font-bold uppercase tracking-wide text-amber-900">📌 Saved Searches</h3>
+                <div class="mt-3 space-y-2">
+                    {% for saved_search in saved_searches %}
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                        <a href="?{{ saved_search.query_params }}" class="flex-1 text-sm font-medium text-slate-700 hover:text-green-700">
+                            {{ saved_search.name }}
+                        </a>
+                        <form method="post" action="{% url 'updates:delete_saved_search' saved_search.pk %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="text-red-600 hover:text-red-800" title="Delete">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.GET.urlencode %}
+            <div class="mb-6 rounded-2xl border border-blue-100 bg-blue-50/50 p-5 shadow-sm">
+                <h3 class="text-sm font-bold uppercase tracking-wide text-blue-900">💾 Save Current Filters</h3>
+                <form method="post" action="{% url 'updates:save_search' %}" class="mt-3 space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="query_params" value="{{ request.GET.urlencode }}">
+                    <input type="text" name="search_name" placeholder="Name this search..." required
+                           class="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                    <button type="submit" class="w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+                        Save Search
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
             <div class="sticky top-24 rounded-2xl border border-earth-100 bg-white/90 p-6 shadow-soft">
                 <h2 class="text-lg font-bold text-slate-900">Create an update</h2>
                 <p class="mt-1 text-sm text-slate-600">Keep it short and specific so others can act quickly.</p>
@@ -79,7 +117,7 @@
                 </div>
                 {% endif %}
 
-                <form method="post" class="mt-5 space-y-4">
+                <form method="post" enctype="multipart/form-data" class="mt-5 space-y-4">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_update">
                     <div>
@@ -106,6 +144,12 @@
                         <label for="{{ form.content.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Content</label>
                         {{ form.content }}
                     </div>
+                    <div>
+                        <label for="attachments" class="mb-1 block text-sm font-semibold text-slate-700">Attachments (Images/PDFs)</label>
+                        <input type="file" name="attachments" id="attachments" multiple accept="image/*,application/pdf"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 focus:border-green-500 focus:ring-4 focus:ring-green-100">
+                        <p class="mt-1 text-xs text-slate-500">Upload up to 5 images or PDFs (max 10MB each)</p>
+                    </div>
                     <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-green-700 to-green-800 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:brightness-110">
                         Post update
                     </button>
@@ -114,29 +158,38 @@
         </aside>
 
         <section class="xl:col-span-8">
-            <div class="mb-4">
-                <h2 class="text-2xl font-extrabold tracking-tight text-slate-900">
-                    Latest updates{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}
-                </h2>
-                <p class="text-sm text-slate-600">
-                    {% if request.GET.category or query %}
-                        Filtered results{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}{% if query %} matching "{{ query }}"{% endif %}.
-                    {% else %}
-                        Showing all categories across the community.
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div class="flex-1">
+                    <h2 class="text-2xl font-extrabold tracking-tight text-slate-900">
+                        Latest updates{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}
+                    </h2>
+                    <p class="text-sm text-slate-600">
+                        {% if request.GET.category or query %}
+                            Filtered results{% if request.GET.category %} in {{ request.GET.category|title }}{% endif %}{% if query %} matching "{{ query }}"{% endif %}.
+                        {% else %}
+                            Showing all categories across the community.
+                        {% endif %}
+                    </p>
+                    {% if status_filter or visibility_filter or tag_filter or author_filter or pinned_filter or from_date_value or to_date_value %}
+                    <p class="mt-1 text-xs font-medium text-slate-500">
+                        Extra filters:
+                        {% if status_filter %}status={{ status_filter }} {% endif %}
+                        {% if visibility_filter %}visibility={{ visibility_filter }} {% endif %}
+                        {% if author_filter %}author={{ author_filter }} {% endif %}
+                        {% if tag_filter %}tag=#{{ tag_filter }} {% endif %}
+                        {% if pinned_filter %}pinned={{ pinned_filter }} {% endif %}
+                        {% if from_date_value %}from={{ from_date_value }} {% endif %}
+                        {% if to_date_value %}to={{ to_date_value }}{% endif %}
+                    </p>
                     {% endif %}
-                </p>
-                {% if status_filter or visibility_filter or tag_filter or author_filter or pinned_filter or from_date_value or to_date_value %}
-                <p class="mt-1 text-xs font-medium text-slate-500">
-                    Extra filters:
-                    {% if status_filter %}status={{ status_filter }} {% endif %}
-                    {% if visibility_filter %}visibility={{ visibility_filter }} {% endif %}
-                    {% if author_filter %}author={{ author_filter }} {% endif %}
-                    {% if tag_filter %}tag=#{{ tag_filter }} {% endif %}
-                    {% if pinned_filter %}pinned={{ pinned_filter }} {% endif %}
-                    {% if from_date_value %}from={{ from_date_value }} {% endif %}
-                    {% if to_date_value %}to={{ to_date_value }}{% endif %}
-                </p>
-                {% endif %}
+                </div>
+                <a href="{% url 'updates:export_csv' %}?{{ request.GET.urlencode }}" 
+                   class="flex items-center gap-2 rounded-xl border border-green-600 bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export CSV
+                </a>
             </div>
 
             {% if updates %}
@@ -207,6 +260,28 @@
                     <div class="prose prose-sm max-w-none text-slate-700">
                         {{ update.content|linebreaks }}
                     </div>
+
+                    {% if update.attachments.all %}
+                    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {% for attachment in update.attachments.all %}
+                            {% if attachment.is_image %}
+                            <a href="{{ attachment.file.url }}" target="_blank" class="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                <img src="{{ attachment.file.url }}" alt="{{ attachment.file_name }}" 
+                                     class="h-40 w-full object-cover transition group-hover:scale-105">
+                                <div class="absolute inset-0 bg-black/0 transition group-hover:bg-black/10"></div>
+                            </a>
+                            {% else %}
+                            <a href="{{ attachment.file.url }}" target="_blank" 
+                               class="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-center text-xs font-medium text-slate-600">{{ attachment.file_name|truncatechars:20 }}</p>
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
 
                     <div class="mt-4 space-y-3 border-t border-slate-100 pt-3">
                         <div class="flex flex-wrap items-center gap-2">
