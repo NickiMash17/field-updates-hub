@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Comment, FieldUpdate, Reaction, Tag, UpdateAuditLog, UserProfile
+from .models import Attachment, Comment, FieldUpdate, Reaction, SavedSearch, Tag, UpdateAuditLog, UserProfile
 
 
 @admin.register(Tag)
@@ -45,3 +45,19 @@ class UpdateAuditLogAdmin(admin.ModelAdmin):
     list_filter = ["action", "created_at"]
     search_fields = ["actor__username", "update_title_snapshot", "metadata"]
     readonly_fields = ["created_at"]
+
+
+@admin.register(SavedSearch)
+class SavedSearchAdmin(admin.ModelAdmin):
+    list_display = ["id", "user", "name", "created_at"]
+    search_fields = ["user__username", "name"]
+    list_filter = ["created_at"]
+    readonly_fields = ["created_at"]
+
+
+@admin.register(Attachment)
+class AttachmentAdmin(admin.ModelAdmin):
+    list_display = ["id", "update", "file_name", "file_size", "content_type", "uploaded_at"]
+    search_fields = ["file_name", "update__title"]
+    list_filter = ["content_type", "uploaded_at"]
+    readonly_fields = ["uploaded_at", "file_size"]

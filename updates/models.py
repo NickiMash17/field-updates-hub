@@ -169,6 +169,41 @@ class UpdateAuditLog(models.Model):
         return f"{self.actor.username} {self.action} ({self.update_title_snapshot or self.field_update_id})"
 
 
+class SavedSearch(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="saved_searches")
+    name = models.CharField(max_length=100)
+    query_params = models.TextField(help_text="URL-encoded query parameters")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="unique_saved_search_per_user"),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name}"
+
+
+class Attachment(models.Model):
+    update = models.ForeignKey(FieldUpdate, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to="attachments/%Y/%m/%d/")
+    file_name = models.CharField(max_length=255)
+    file_size = models.IntegerField(help_text="File size in bytes")
+    content_type = models.CharField(max_length=100)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["uploaded_at"]
+
+    def __str__(self):
+        return f"{self.file_name} for {self.update_id}"
+
+    @property
+    def is_image(self):
+        return self.content_type.startswith("image/")
+
+
 @receiver(post_save, sender=User)
 def ensure_user_profile(sender, instance, created, **kwargs):
     if created:
