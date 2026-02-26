@@ -69,3 +69,38 @@ class FieldUpdate(models.Model):
 
     def __str__(self):
         return f"{self.title} by {self.author.username}"
+
+
+class Comment(models.Model):
+    update = models.ForeignKey(FieldUpdate, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="update_comments")
+    content = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Comment by {self.author.username} on {self.update_id}"
+
+
+class Reaction(models.Model):
+    REACTION_CHOICES = [
+        ("ack", "Acknowledge"),
+        ("urgent", "Urgent"),
+        ("support", "Support"),
+    ]
+
+    update = models.ForeignKey(FieldUpdate, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="update_reactions")
+    reaction_type = models.CharField(max_length=20, choices=REACTION_CHOICES, default="ack")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["update", "user"], name="unique_reaction_per_user_per_update"),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.update_id} ({self.reaction_type})"

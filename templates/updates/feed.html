@@ -69,6 +69,7 @@
 
                 <form method="post" class="mt-5 space-y-4">
                     {% csrf_token %}
+                    <input type="hidden" name="action" value="create_update">
                     <div>
                         <label for="{{ form.title.id_for_label }}" class="mb-1 block text-sm font-semibold text-slate-700">Title</label>
                         {{ form.title }}
@@ -171,7 +172,53 @@
                         {{ update.content|linebreaks }}
                     </div>
 
-                    <div class="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="mt-4 space-y-3 border-t border-slate-100 pt-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            {% for reaction_value, reaction_label in reaction_choices %}
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_reaction">
+                                <input type="hidden" name="update_id" value="{{ update.pk }}">
+                                <input type="hidden" name="reaction_type" value="{{ reaction_value }}">
+                                <button type="submit"
+                                        class="rounded-full border px-3 py-1 text-xs font-semibold transition {% if update.current_user_reaction == reaction_value %}border-green-300 bg-green-100 text-green-800{% else %}border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100{% endif %}">
+                                    {{ reaction_label }} ({% if reaction_value == 'ack' %}{{ update.reaction_counts.ack|default:0 }}{% elif reaction_value == 'urgent' %}{{ update.reaction_counts.urgent|default:0 }}{% elif reaction_value == 'support' %}{{ update.reaction_counts.support|default:0 }}{% endif %})
+                                </button>
+                            </form>
+                            {% endfor %}
+                        </div>
+
+                        <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                            <h4 class="text-sm font-semibold text-slate-700">Comments ({{ update.comments.count }})</h4>
+                            {% if update.comments.all %}
+                            <div class="mt-2 space-y-2">
+                                {% for comment in update.comments.all %}
+                                <div class="rounded-lg border border-slate-100 bg-white p-2.5">
+                                    <p class="text-xs text-slate-500">
+                                        <span class="font-semibold text-slate-700">{{ comment.author.username }}</span>
+                                        <span class="px-1">&bull;</span>{{ comment.created_at|date:"M d, Y H:i" }}
+                                    </p>
+                                    <p class="mt-1 text-sm text-slate-700">{{ comment.content }}</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="mt-2 text-sm text-slate-500">No comments yet.</p>
+                            {% endif %}
+
+                            <form method="post" class="mt-3 flex flex-col gap-2 sm:flex-row">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="add_comment">
+                                <input type="hidden" name="update_id" value="{{ update.pk }}">
+                                <input type="text" name="comment_content" maxlength="500" placeholder="Add a comment..."
+                                       class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-green-500 focus:ring-4 focus:ring-green-100">
+                                <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+                                    Comment
+                                </button>
+                            </form>
+                        </div>
+
+                    <div class="flex flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             {% if update.updated_at != update.created_at %}
                                 Updated {{ update.updated_at|date:"M d, Y H:i" }}
@@ -184,6 +231,7 @@
                             <a href="{% url 'updates:delete' update.pk %}" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 font-semibold text-red-700 transition hover:bg-red-100">Delete</a>
                         </div>
                         {% endif %}
+                    </div>
                     </div>
                 </article>
                 {% endfor %}

@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import FieldUpdate
+from .models import Comment, FieldUpdate, Reaction
 
 
 class AuthAndFeedTests(TestCase):
@@ -215,6 +215,73 @@ class AuthAndFeedTests(TestCase):
         self.assertEqual(update.title, "Updated title")
         self.assertEqual(update.category, "crop")
         self.assertTrue(update.is_pinned)
+
+    def test_feed_post_can_add_comment_to_update(self):
+        update = FieldUpdate.objects.create(
+            author=self.user,
+            title="Needs attention",
+            content="Check irrigation line",
+            category="general",
+        )
+        self.client.login(username="farmer2", password="StrongPass123!")
+
+        response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "add_comment",
+                "update_id": update.pk,
+                "comment_content": "I can take a look this afternoon.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("updates:feed"))
+        comment = Comment.objects.get(update=update)
+        self.assertEqual(comment.author, self.other_user)
+        self.assertEqual(comment.content, "I can take a look this afternoon.")
+
+    def test_feed_post_toggle_reaction_creates_updates_and_removes_reaction(self):
+        update = FieldUpdate.objects.create(
+            author=self.user,
+            title="Storm warning",
+            content="Heavy rain expected",
+            category="weather",
+        )
+        self.client.login(username="farmer2", password="StrongPass123!")
+
+        create_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "toggle_reaction",
+                "update_id": update.pk,
+                "reaction_type": "urgent",
+            },
+        )
+        self.assertRedirects(create_response, reverse("updates:feed"))
+        reaction = Reaction.objects.get(update=update, user=self.other_user)
+        self.assertEqual(reaction.reaction_type, "urgent")
+
+        update_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "toggle_reaction",
+                "update_id": update.pk,
+                "reaction_type": "support",
+            },
+        )
+        self.assertRedirects(update_response, reverse("updates:feed"))
+        reaction.refresh_from_db()
+        self.assertEqual(reaction.reaction_type, "support")
+
+        remove_response = self.client.post(
+            reverse("updates:feed"),
+            {
+                "action": "toggle_reaction",
+                "update_id": update.pk,
+                "reaction_type": "support",
+            },
+        )
+        self.assertRedirects(remove_response, reverse("updates:feed"))
+        self.assertFalse(Reaction.objects.filter(update=update, user=self.other_user).exists())
 
     def test_non_owner_cannot_edit_update(self):
         update = FieldUpdate.objects.create(

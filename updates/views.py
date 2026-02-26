@@ -10,8 +10,9 @@ from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils.dateparse import parse_date
+from collections import Counter
 
-from .models import FieldUpdate, Tag
+from .models import Comment, FieldUpdate, Reaction, Tag
 from .forms import FieldUpdateForm
 
 
@@ -56,6 +57,31 @@ def register(request):
 @login_required
 def feed(request):
     if request.method == 'POST':
+        action = request.POST.get("action", "create_update")
+        if action == "add_comment":
+            update = get_object_or_404(FieldUpdate, pk=request.POST.get("update_id"))
+            comment_text = request.POST.get("comment_content", "").strip()
+            if comment_text:
+                Comment.objects.create(update=update, author=request.user, content=comment_text)
+            return redirect('updates:feed')
+        if action == "toggle_reaction":
+            update = get_object_or_404(FieldUpdate, pk=request.POST.get("update_id"))
+            reaction_type = request.POST.get("reaction_type", "ack")
+            valid_types = {choice[0] for choice in Reaction.REACTION_CHOICES}
+            if reaction_type not in valid_types:
+                reaction_type = "ack"
+
+            existing_reaction = Reaction.objects.filter(update=update, user=request.user).first()
+            if existing_reaction and existing_reaction.reaction_type == reaction_type:
+                existing_reaction.delete()
+            else:
+                Reaction.objects.update_or_create(
+                    update=update,
+                    user=request.user,
+                    defaults={"reaction_type": reaction_type},
+                )
+            return redirect('updates:feed')
+
         form = FieldUpdateForm(request.POST)
         if form.is_valid():
             field_update = form.save(commit=False)
@@ -74,7 +100,11 @@ def feed(request):
     from_date = parse_date(request.GET.get('from_date', '').strip())
     to_date = parse_date(request.GET.get('to_date', '').strip())
     
-    updates = FieldUpdate.objects.select_related('author').prefetch_related('tags').all()
+    updates = FieldUpdate.objects.select_related('author').prefetch_related(
+        'tags',
+        'comments__author',
+        'reactions__user',
+    ).all()
 
     # Filter updates by category if specified
     if category_filter:
@@ -109,10 +139,17 @@ def feed(request):
     
     paginator = Paginator(updates, 10)
     page_obj = paginator.get_page(request.GET.get('page'))
+    page_updates = list(page_obj.object_list)
+
+    for item in page_updates:
+        counts = Counter(item.reactions.values_list("reaction_type", flat=True))
+        item.reaction_counts = counts
+        user_reaction = next((reaction for reaction in item.reactions.all() if reaction.user_id == request.user.id), None)
+        item.current_user_reaction = user_reaction.reaction_type if user_reaction else ""
 
     return render(request, 'updates/feed.html', {
         'form': form,
-        'updates': page_obj.object_list,
+        'updates': page_updates,
         'page_obj': page_obj,
         'query': query,
         'author_filter': author_filter,
@@ -122,6 +159,7 @@ def feed(request):
         'to_date_value': request.GET.get('to_date', '').strip(),
         'selected_category': category_filter,
         'popular_tags': Tag.objects.order_by('name')[:15],
+        'reaction_choices': Reaction.REACTION_CHOICES,
     })
 
 
